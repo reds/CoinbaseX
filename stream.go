@@ -1,4 +1,4 @@
-package main
+package coinbaseX
 
 import (
 	"encoding/json"
@@ -55,12 +55,12 @@ type StreamMsg struct {
 	Error          error
 }
 
-func stream(q chan *StreamMsg, logFile string) error {
+func (cb *CoinbaseX) Stream(q chan *StreamMsg) error {
 	ws, err := websocket.Dial("wss://ws-feed.exchange.coinbase.com", "wss", "http://chat52.com/coinbase")
 	if err != nil {
 		return err
 	}
-	sub := `{"type": "subscribe","product_id": "BTC-USD"}`
+	sub := `{"type": "subscribe","product_id":"` + cb.Config.Product_id + `"}`
 	err = websocket.Message.Send(ws, sub)
 	if err != nil {
 		return err
@@ -78,9 +78,9 @@ func stream(q chan *StreamMsg, logFile string) error {
 	q <- msg
 	go func() {
 		var fp *os.File
-		if logFile != "" {
+		if cb.Debug.WriteLog && cb.Debug.StreamLog != "" {
 			var err error
-			fp, err = os.Create(logFile)
+			fp, err = os.Create(cb.Debug.StreamLog)
 			if err != nil {
 				panic(err)
 			}

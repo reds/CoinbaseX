@@ -1,15 +1,14 @@
-package main
+package coinbaseX
 
 import (
 	"container/list"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"sync"
 )
 
-type book struct {
+type Book struct {
 	bids     *list.List
 	bidsLock sync.Mutex
 	asks     *list.List
@@ -26,11 +25,7 @@ type bidAsk struct {
 var bidsComp = func(a, b float64) bool { return a < b }
 var asksComp = func(a, b float64) bool { return a > b }
 
-func httpgetBook() ([]byte, error) {
-	return httpCoinbase("GET", "/products/"+cfg.Product_id+"/book", map[string]string{"level": "3"}, "")
-}
-
-func (b *book) maintainBook(msg *StreamMsg) {
+func (b *Book) MaintainBook(msg *StreamMsg) {
 	switch msg.Type {
 	case StreamMsgReceived:
 		b.msgCnt["Received"]++
@@ -63,32 +58,32 @@ func (b *book) maintainBook(msg *StreamMsg) {
 	}
 }
 
-func (b *book) addBid(ba *bidAsk) {
+func (b *Book) addBid(ba *bidAsk) {
 	addToList(b.bids, b.bidsLock, bidsComp, ba)
 }
 
-func (b *book) addAsk(ba *bidAsk) {
+func (b *Book) addAsk(ba *bidAsk) {
 	addToList(b.asks, b.asksLock, asksComp, ba)
 }
 
-func (b *book) removeOrder(orderid string) {
+func (b *Book) removeOrder(orderid string) {
 	removeOrderFromList(b.bids, b.bidsLock, orderid)
 	removeOrderFromList(b.asks, b.asksLock, orderid)
 }
 
-func (b *book) changeOrderSize(orderid string, newSize float64) {
+func (b *Book) changeOrderSize(orderid string, newSize float64) {
 	changeOrderSizeOnList(b.bids, b.bidsLock, orderid, newSize)
 	changeOrderSizeOnList(b.asks, b.asksLock, orderid, newSize)
 }
 
 // for a partial match
-func (b *book) reduceOrderSize(orderid string, size float64) {
+func (b *Book) reduceOrderSize(orderid string, size float64) {
 	// fmt.Println("reduce order size", orderid, size)
 	reduceOrderSizeOnList(b.bids, b.bidsLock, orderid, size)
 	reduceOrderSizeOnList(b.asks, b.asksLock, orderid, size)
 }
 
-func (b *book) getBids(n int) map[string]interface{} {
+func (b *Book) getBids(n int) map[string]interface{} {
 	b.bidsLock.Lock()
 	defer b.bidsLock.Unlock()
 	if n == 0 {
@@ -108,7 +103,7 @@ func (b *book) getBids(n int) map[string]interface{} {
 	return map[string]interface{}{"bids": bs}
 }
 
-func (b *book) getAsks(n int) map[string]interface{} {
+func (b *Book) getAsks(n int) map[string]interface{} {
 	b.asksLock.Lock()
 	defer b.asksLock.Unlock()
 	if n == 0 {
@@ -128,7 +123,7 @@ func (b *book) getAsks(n int) map[string]interface{} {
 	return map[string]interface{}{"asks": bs}
 }
 
-func (b *book) getBidAsks(n int) map[string]interface{} {
+func (b *Book) getBidAsks(n int) map[string]interface{} {
 	b.bidsLock.Lock()
 	defer b.bidsLock.Unlock()
 	b.asksLock.Lock()
@@ -178,25 +173,8 @@ func addToList(l *list.List, lock sync.Mutex, comp func(a, b float64) bool, ba *
 	}
 }
 
-func getBook(logFile string) (int64, *book, error) {
-	buf, err := httpgetBook()
-	if err != nil {
-		return 0, nil, err
-	}
-	// log to file
-	if logFile != "" {
-		fp, err := os.Create(logFile)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Fprintln(fp, string(buf))
-		fp.Close()
-	}
-	return makeBook(buf)
-}
-
-func makeBook(buf []byte) (int64, *book, error) {
-	bk := &book{msgCnt: make(map[string]int)} // need locks
+func makeBook(buf []byte) (int64, *Book, error) {
+	bk := &Book{msgCnt: make(map[string]int)} // need locks
 	var b map[string]interface{}
 	err := json.Unmarshal(buf, &b)
 	if err != nil {

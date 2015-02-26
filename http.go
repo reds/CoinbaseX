@@ -1,4 +1,4 @@
-package main
+package coinbaseX
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func handleInfo(w http.ResponseWriter, req *http.Request, book *book) {
+func HandleInfo(w http.ResponseWriter, req *http.Request, book *Book) {
 	book.bidsLock.Lock()
 	defer book.bidsLock.Unlock()
 	book.asksLock.Lock()
@@ -15,17 +15,17 @@ func handleInfo(w http.ResponseWriter, req *http.Request, book *book) {
 	writeJson(w, map[string]interface{}{"bids": book.bids.Len(), "asks": book.asks.Len()})
 }
 
-func handleBids(w http.ResponseWriter, req *http.Request, book *book) {
+func HandleBids(w http.ResponseWriter, req *http.Request, book *Book) {
 	n, _ := strconv.Atoi(req.FormValue("n"))
 	writeJson(w, book.getBids(n))
 }
 
-func handleAsks(w http.ResponseWriter, req *http.Request, book *book) {
+func HandleAsks(w http.ResponseWriter, req *http.Request, book *Book) {
 	n, _ := strconv.Atoi(req.FormValue("n"))
 	writeJson(w, book.getAsks(n))
 }
 
-func handleBidAsks(w http.ResponseWriter, req *http.Request, book *book) {
+func HandleBidAsks(w http.ResponseWriter, req *http.Request, book *Book) {
 	n, _ := strconv.Atoi(req.FormValue("n"))
 	writeJson(w, book.getBidAsks(n))
 }

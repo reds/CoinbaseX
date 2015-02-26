@@ -1,18 +1,25 @@
-package main
+package coinbaseX
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestOrders(t *testing.T) {
+func Testorders(t *testing.T) {
+	cb, err := New(filepath.Join(os.Getenv("HOME"), ".ssh", "coinbase.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	watch := make(map[string]*Order)
-	orders, err := Orders()
+	orders, err := cb.Orders()
 	for _, v := range orders {
 		watch[v.Id] = v
 	}
-	q, err := stream("")
+	q := make(chan *StreamMsg)
+	err = cb.Stream(q)
 	if err != nil {
 		t.Fatal(err)
 	}

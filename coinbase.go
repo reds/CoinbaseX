@@ -1,4 +1,4 @@
-package main
+package coinbaseX
 
 import (
 	"bytes"
@@ -10,9 +10,38 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 )
+
+type CoinbaseX struct {
+	Config struct {
+		Passphrase string
+		Key        string
+		Secret     string
+		Apihost    string
+		Product_id string
+	}
+	Debug struct {
+		WriteLog  bool
+		StreamLog string
+		BookLog   string
+	}
+}
+
+func New(fn string) (*CoinbaseX, error) {
+	buf, err := ioutil.ReadFile(fn)
+	if err != nil {
+		return nil, err
+	}
+	var cb CoinbaseX
+	err = json.Unmarshal(buf, &cb.Config)
+	if err != nil {
+		return nil, err
+	}
+	return &cb, nil
+}
 
 type Account struct {
 	Id         string
@@ -23,8 +52,8 @@ type Account struct {
 	Profile_id string
 }
 
-func Accounts() ([]Account, error) {
-	buf, err := httpCoinbase("GET", "/accounts", nil, "")
+func (cb *CoinbaseX) Accounts() ([]Account, error) {
+	buf, err := cb.httpCoinbase("GET", "/accounts", nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +63,23 @@ func Accounts() ([]Account, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+func (cb *CoinbaseX) Book() (int64, *Book, error) {
+	buf, err := cb.httpCoinbase("GET", "/products/"+cb.Config.Product_id+"/book", map[string]string{"level": "3"}, "")
+	if err != nil {
+		return 0, nil, err
+	}
+	// log to file
+	if cb.Debug.WriteLog && cb.Debug.BookLog != "" {
+		fp, err := os.Create(cb.Debug.BookLog)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Fprintln(fp, string(buf))
+		fp.Close()
+	}
+	return makeBook(buf)
 }
 
 type Order struct {
@@ -51,8 +97,8 @@ type Order struct {
 	Fill_fees   json.Number
 }
 
-func Orders() ([]*Order, error) {
-	buf, err := httpCoinbase("GET", "/orders", nil, "")
+func (cb *CoinbaseX) Orders() ([]*Order, error) {
+	buf, err := cb.httpCoinbase("GET", "/orders", nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +110,8 @@ func Orders() ([]*Order, error) {
 	return res, nil
 }
 
-func CancelOrder(id string) (bool, error) {
-	buf, err := httpCoinbase("DELETE", "/orders/"+id, nil, "")
+func (cb *CoinbaseX) CancelOrder(id string) (bool, error) {
+	buf, err := cb.httpCoinbase("DELETE", "/orders/"+id, nil, "")
 	if err != nil {
 		return false, err
 	}
@@ -84,7 +130,7 @@ type CreateOrderRes struct {
 	Stp        string
 }
 
-func CreateOrder(myid string, price, btcs float64, side, product, stp string) (*CreateOrderRes, error) {
+func (cb *CoinbaseX) CreateOrder(myid string, price, btcs float64, side, product, stp string) (*CreateOrderRes, error) {
 	args := map[string]string{
 		//"client_oid": myid,
 		"price":      strconv.FormatFloat(price, 'f', -1, 64),
@@ -93,7 +139,7 @@ func CreateOrder(myid string, price, btcs float64, side, product, stp string) (*
 		"product_id": product,
 	}
 	body, _ := json.Marshal(args)
-	buf, err := httpCoinbase("POST", "/orders", nil, string(body))
+	buf, err := cb.httpCoinbase("POST", "/orders", nil, string(body))
 	if err != nil {
 		return nil, err
 	}
@@ -105,33 +151,33 @@ func CreateOrder(myid string, price, btcs float64, side, product, stp string) (*
 	return &res, nil
 }
 
-func candles(prod string, startts, endts time.Time, granularity int) {
+func (cb *CoinbaseX) Candles(prod string, startts, endts time.Time, granularity int) {
 	args := map[string]string{
 		"start":       startts.Format("2006-01-02T15:04:05.999999999z"),
 		"end":         endts.Format("2006-01-02T15:04:05.999999999z"),
 		"granularity": strconv.Itoa(granularity),
 	}
 	fmt.Println(args)
-	buf, err := httpCoinbase("GET", "/products/"+prod+"/candles", args, "")
+	buf, err := cb.httpCoinbase("GET", "/products/"+prod+"/candles", args, "")
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println(string(buf))
 }
 
-func httpCoinbase(method, path string, args map[string]string, body string) ([]byte, error) {
+func (cb *CoinbaseX) httpCoinbase(method, path string, args map[string]string, body string) ([]byte, error) {
 	form := &url.Values{}
 	for k, v := range args {
 		form.Set(k, v)
 	}
 	u := &url.URL{
 		Scheme:   "https",
-		Host:     cfg.Apihost,
+		Host:     cb.Config.Apihost,
 		Path:     path,
 		RawQuery: form.Encode(),
 	}
 	ts := time.Now().Unix()
-	key, err := base64.StdEncoding.DecodeString(cfg.Secret)
+	key, err := base64.StdEncoding.DecodeString(cb.Config.Secret)
 	if err != nil {
 		return nil, err
 	}
@@ -143,10 +189,10 @@ func httpCoinbase(method, path string, args map[string]string, body string) ([]b
 	b.WriteString(body)
 	req, _ := http.NewRequest(method, u.String(), &b)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("CB-ACCESS-KEY", cfg.Key)
+	req.Header.Set("CB-ACCESS-KEY", cb.Config.Key)
 	req.Header.Set("CB-ACCESS-SIGN", sig)
 	req.Header.Set("CB-ACCESS-TIMESTAMP", strconv.FormatInt(ts, 10))
-	req.Header.Set("CB-ACCESS-PASSPHRASE", cfg.Passphrase)
+	req.Header.Set("CB-ACCESS-PASSPHRASE", cb.Config.Passphrase)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Error url %s: %s", u.String(), err.Error())
@@ -159,6 +205,5 @@ func httpCoinbase(method, path string, args map[string]string, body string) ([]b
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Error bad status code returned %s\n%s\n", resp.Status, string(buf))
 	}
-	fmt.Println(string(buf))
 	return buf, nil
 }

@@ -1,4 +1,4 @@
-package main
+package coinbaseX
 
 import (
 	"encoding/json"

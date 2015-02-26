@@ -1,4 +1,4 @@
-package main
+package coinbaseX
 
 import (
 	"bufio"
@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
 )
 
-func TestmaintainBook(t *testing.T) {
-	buf, err := ioutil.ReadFile("data1/bookStart.log")
+func TestMaintainBook(t *testing.T) {
+	// test on saved data
+	buf, err := ioutil.ReadFile("data1/bookEndM0.log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +59,7 @@ func TestmaintainBook(t *testing.T) {
 	msgQ := make(chan *StreamMsg)
 	go func() {
 		for msg := range msgQ {
-			book1.maintainBook(msg)
+			book1.MaintainBook(msg)
 		}
 		wg.Done()
 	}()
@@ -82,8 +84,14 @@ func TestmaintainBook(t *testing.T) {
 	dumpBook(book1, "book1.dump")
 }
 
-func Testbook(t *testing.T) {
-	seq, book, err := getBook("book.log")
+func TestBook(t *testing.T) {
+	cb, err := New(filepath.Join(os.Getenv("HOME"), ".ssh", "coinbase.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cb.Debug.WriteLog = true
+	cb.Debug.BookLog = "book.log"
+	seq, book, err := cb.Book()
 	if err != nil {
 		panic(err)
 	}
@@ -107,7 +115,7 @@ func Testbook(t *testing.T) {
 	}
 }
 
-func dumpBook(b *book, fn string) {
+func dumpBook(b *Book, fn string) {
 	f1, err := os.Create(fn)
 	if err != nil {
 		panic(err)
