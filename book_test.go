@@ -23,7 +23,7 @@ func TestMaintainBook(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(seq1)
-	buf, err = ioutil.ReadFile("data1/bookEndM1070.log")
+	buf, err = ioutil.ReadFile("data1/bookEndM1365.log")
 	if err != nil {
 		t.Fatal(err)
 	}
