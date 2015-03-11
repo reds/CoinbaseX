@@ -43,7 +43,6 @@ func (b *Book) MaintainBook(msg *StreamMsg) {
 		b.msgCnt["Done"]++
 	case StreamMsgMatch:
 		b.reduceOrderSize(msg.Maker_order_id, msg.Size)
-		fmt.Println("match", msg.Price, msg.Size, msg.Side)
 		b.msgCnt["Match"]++
 	case StreamMsgChange:
 		b.changeOrderSize(msg.Order_id, msg.New_size)
@@ -59,28 +58,27 @@ func (b *Book) MaintainBook(msg *StreamMsg) {
 }
 
 func (b *Book) addBid(ba *bidAsk) {
-	addToList(b.bids, b.bidsLock, bidsComp, ba)
+	addToList(b.bids, &b.bidsLock, bidsComp, ba)
 }
 
 func (b *Book) addAsk(ba *bidAsk) {
-	addToList(b.asks, b.asksLock, asksComp, ba)
+	addToList(b.asks, &b.asksLock, asksComp, ba)
 }
 
 func (b *Book) removeOrder(orderid string) {
-	removeOrderFromList(b.bids, b.bidsLock, orderid)
-	removeOrderFromList(b.asks, b.asksLock, orderid)
+	removeOrderFromList(b.bids, &b.bidsLock, orderid)
+	removeOrderFromList(b.asks, &b.asksLock, orderid)
 }
 
 func (b *Book) changeOrderSize(orderid string, newSize float64) {
-	changeOrderSizeOnList(b.bids, b.bidsLock, orderid, newSize)
-	changeOrderSizeOnList(b.asks, b.asksLock, orderid, newSize)
+	changeOrderSizeOnList(b.bids, &b.bidsLock, orderid, newSize)
+	changeOrderSizeOnList(b.asks, &b.asksLock, orderid, newSize)
 }
 
 // for a partial match
 func (b *Book) reduceOrderSize(orderid string, size float64) {
-	// fmt.Println("reduce order size", orderid, size)
-	reduceOrderSizeOnList(b.bids, b.bidsLock, orderid, size)
-	reduceOrderSizeOnList(b.asks, b.asksLock, orderid, size)
+	reduceOrderSizeOnList(b.bids, &b.bidsLock, orderid, size)
+	reduceOrderSizeOnList(b.asks, &b.asksLock, orderid, size)
 }
 
 func (b *Book) getBids(n int) map[string]interface{} {
@@ -156,7 +154,7 @@ func (b *Book) getBidAsks(n int) map[string]interface{} {
 	return map[string]interface{}{"bids": bs, "asks": as}
 }
 
-func addToList(l *list.List, lock sync.Mutex, comp func(a, b float64) bool, ba *bidAsk) {
+func addToList(l *list.List, lock *sync.Mutex, comp func(a, b float64) bool, ba *bidAsk) {
 	lock.Lock()
 	defer lock.Unlock()
 	var ipoint *list.Element
@@ -180,11 +178,11 @@ func makeBook(buf []byte) (int64, *Book, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	bids, err := makeBAs(b["bids"].([]interface{}), bk.bidsLock, bidsComp)
+	bids, err := makeBAs(b["bids"].([]interface{}), &bk.bidsLock, bidsComp)
 	if err != nil {
 		return 0, nil, err
 	}
-	asks, err := makeBAs(b["asks"].([]interface{}), bk.asksLock, asksComp)
+	asks, err := makeBAs(b["asks"].([]interface{}), &bk.asksLock, asksComp)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -193,7 +191,7 @@ func makeBook(buf []byte) (int64, *Book, error) {
 	return int64(b["sequence"].(float64)), bk, nil
 }
 
-func makeBAs(in []interface{}, lock sync.Mutex, comp func(float64, float64) bool) (*list.List, error) {
+func makeBAs(in []interface{}, lock *sync.Mutex, comp func(float64, float64) bool) (*list.List, error) {
 	if len(in) < 2 {
 		return nil, fmt.Errorf("too few ")
 	}
@@ -230,7 +228,7 @@ func makeBA(in interface{}) *bidAsk {
 	return &bidAsk{price: price, size: size, id: ba[2].(string)}
 }
 
-func removeOrderFromList(l *list.List, lock sync.Mutex, orderid string) {
+func removeOrderFromList(l *list.List, lock *sync.Mutex, orderid string) {
 	lock.Lock()
 	defer lock.Unlock()
 	var r *list.Element
@@ -246,7 +244,7 @@ func removeOrderFromList(l *list.List, lock sync.Mutex, orderid string) {
 	}
 }
 
-func changeOrderSizeOnList(l *list.List, lock sync.Mutex, orderid string, newSize float64) {
+func changeOrderSizeOnList(l *list.List, lock *sync.Mutex, orderid string, newSize float64) {
 	lock.Lock()
 	defer lock.Unlock()
 	for e := l.Front(); e != nil; e = e.Next() {
@@ -258,7 +256,7 @@ func changeOrderSizeOnList(l *list.List, lock sync.Mutex, orderid string, newSiz
 	}
 }
 
-func reduceOrderSizeOnList(l *list.List, lock sync.Mutex, orderid string, size float64) {
+func reduceOrderSizeOnList(l *list.List, lock *sync.Mutex, orderid string, size float64) {
 	lock.Lock()
 	defer lock.Unlock()
 	for e := l.Front(); e != nil; e = e.Next() {
