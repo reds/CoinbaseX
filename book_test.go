@@ -91,23 +91,19 @@ func TestBook(t *testing.T) {
 	}
 	cb.Debug.WriteLog = true
 	cb.Debug.BookLog = "book.log"
-	seq, book, err := cb.Book()
+	_, book, err := cb.Book()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(seq)
 	cnt := 0
 	for e := book.bids.Front(); e != nil; e = e.Next() {
-		fmt.Println(e.Value.(*bidAsk))
 		if cnt > 10 {
 			break
 		}
 		cnt++
 	}
-	fmt.Println()
 	cnt = 0
 	for e := book.asks.Front(); e != nil; e = e.Next() {
-		fmt.Println(e.Value.(*bidAsk))
 		if cnt > 10 {
 			break
 		}
@@ -131,18 +127,15 @@ func dumpBook(b *Book, fn string) {
 	f1.Close()
 }
 
-func TestjsonParse(t *testing.T) {
+func TestJsonParse(t *testing.T) {
 	buf := []byte(`{"sequence":11934629,"bids":[["241.01000000","0.64500000","867ec58b-f889-45a5-8045-8a6fa952a2a8"]]}`)
 	var m map[string]interface{}
 	err := json.Unmarshal(buf, &m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(m)
-
-	price, err := strconv.ParseFloat("0.64500000", 64)
+	_, err = strconv.ParseFloat("0.64500000", 64)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(price)
 }

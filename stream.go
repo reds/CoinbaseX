@@ -22,6 +22,26 @@ const (
 	StreamMsgInternalError
 )
 
+func (m StreamMsgType) String() string {
+	switch m {
+	case StreamMsgReceived:
+		return "RECEIVED:"
+	case StreamMsgOpen:
+		return "OPEN:    "
+	case StreamMsgDone:
+		return "DONE:    "
+	case StreamMsgMatch:
+		return "MATCH:   "
+	case StreamMsgChange:
+		return "CHANGE:  "
+	case StreamMsgError:
+		return "ERROR:   "
+	case StreamMsgInternalError:
+		return "INTERNAL:"
+	}
+	return "UNKNOWN: "
+}
+
 type StreamMsgSide int
 
 const (
@@ -29,12 +49,34 @@ const (
 	StreamMsgSell
 )
 
+func (s StreamMsgSide) String() string {
+	switch s {
+	case StreamMsgBuy:
+		return "BUY "
+	case StreamMsgSell:
+		return "SELL"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 type StreamMsgReason int
 
 const (
 	StreamMsgFilled StreamMsgReason = iota
 	StreamMsgCanceled
 )
+
+func (s StreamMsgReason) String() string {
+	switch s {
+	case StreamMsgFilled:
+		return "FILLED  "
+	case StreamMsgCanceled:
+		return "CANCELED"
+	default:
+		return "UNKNOWN"
+	}
+}
 
 type StreamMsg struct {
 	Type           StreamMsgType
@@ -52,7 +94,12 @@ type StreamMsg struct {
 	New_size       float64
 	Old_size       float64
 	Message        string
+	Json           []byte
 	Error          error
+}
+
+func (m *StreamMsg) String() string {
+	return fmt.Sprint(m.Type, m.Side, m.Reason, fmt.Sprintf("%8.2f", m.Price), fmt.Sprintf("%8.2f", m.Size), "   ", m.Order_id)
 }
 
 func (cb *CoinbaseX) Stream(q chan *StreamMsg) error {
@@ -95,13 +142,7 @@ func (cb *CoinbaseX) Stream(q chan *StreamMsg) error {
 			if fp != nil {
 				fmt.Fprintln(fp, string(data))
 			}
-			var kv map[string]interface{}
-			err = json.Unmarshal(data, &kv)
-			if err != nil {
-				q <- &StreamMsg{Type: StreamMsgInternalError, Message: err.Error(), Error: err}
-				return
-			}
-			msg, err := parseStream(kv)
+			msg, err := ParseMsg(data)
 			if err != nil {
 				q <- &StreamMsg{Type: StreamMsgInternalError, Message: err.Error(), Error: err}
 				return
@@ -110,6 +151,20 @@ func (cb *CoinbaseX) Stream(q chan *StreamMsg) error {
 		}
 	}()
 	return nil
+}
+
+func ParseMsg(data []byte) (*StreamMsg, error) {
+	var kv map[string]interface{}
+	err := json.Unmarshal(data, &kv)
+	if err != nil {
+		return nil, err
+	}
+	msg, err := parseStream(kv)
+	if err != nil {
+		return nil, err
+	}
+	msg.Json = data
+	return msg, nil
 }
 
 func parseStream(kv map[string]interface{}) (*StreamMsg, error) {
